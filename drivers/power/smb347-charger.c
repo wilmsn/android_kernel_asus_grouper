@@ -447,8 +447,7 @@ static int smb347_pin_control(bool state)
 	struct i2c_client *client = charger->client;
 	u8 ret = 0;
 
-	mutex_lock(&charger->pinctrl_lock);
-
+	printk("smb347_charger_enable %d\n",state);
 	if (state) {
 		/*Pin Controls -active low */
 		ret = smb347_update_reg(client, smb347_PIN_CTRL, PIN_ACT_LOW);

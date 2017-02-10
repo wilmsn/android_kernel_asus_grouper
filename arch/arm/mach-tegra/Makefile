@@ -30,7 +30,6 @@ obj-$(CONFIG_PM_SLEEP)                  += pm-irq.o
 obj-y                                   += gic.o
 obj-$(CONFIG_USBHOST)         		+= usbhost.o        # tmtmtm
 
-
 obj-y                                   += sleep.o
 
 plus_sec := $(call as-instr,.arch_extension sec,+sec)
