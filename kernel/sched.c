@@ -1206,6 +1206,16 @@ static void resched_cpu(int cpu)
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
+void force_cpu_resched(int cpu)
+{
+       struct rq *rq = cpu_rq(cpu);
+       unsigned long flags;
+
+       raw_spin_lock_irqsave(&rq->lock, flags);
+       resched_task(cpu_curr(cpu));
+       raw_spin_unlock_irqrestore(&rq->lock, flags);
+}
+
 #ifdef CONFIG_NO_HZ
 /*
  * In the semi idle case, use the nearest busy cpu for migrating timers
@@ -1316,6 +1326,11 @@ static void sched_rt_avg_update(struct rq *rq, u64 rt_delta)
 
 static void sched_avg_update(struct rq *rq)
 {
+}
+
+void force_cpu_resched(int cpu)
+{
+       set_need_resched();
 }
 #endif /* CONFIG_SMP */
 
@@ -2912,6 +2927,24 @@ void sched_fork(struct task_struct *p)
 	put_cpu();
 }
 
+#ifdef CONFIG_PREEMPT_COUNT_CPU
+
+/*
+ * Fetch the preempt count of some cpu's current task.  Must be called
+ * with interrupts blocked.  Stale return value.
+ *
+ * No locking needed as this always wins the race with context-switch-out
+ * + task destruction, since that is so heavyweight.  The smp_rmb() is
+ * to protect the pointers in that race, not the data being pointed to
+ * (which, being guaranteed stale, can stand a bit of fuzziness).
+ */
+int preempt_count_cpu(int cpu)
+{
+       smp_rmb(); /* stop data prefetch until program ctr gets here */
+       return task_thread_info(cpu_curr(cpu))->preempt_count;
+}
+#endif
+
 /*
  * wake_up_new_task - wake up a newly created task for the first time.
  *
@@ -4156,7 +4189,7 @@ void __kprobes add_preempt_count(int val)
 	if (DEBUG_LOCKS_WARN_ON((preempt_count() < 0)))
 		return;
 #endif
-	preempt_count() += val;
+	__add_preempt_count(val);
 #ifdef CONFIG_DEBUG_PREEMPT
 	/*
 	 * Spinlock count overflowing soon?
@@ -4187,7 +4220,7 @@ void __kprobes sub_preempt_count(int val)
 
 	if (preempt_count() == val)
 		trace_preempt_on(CALLER_ADDR0, get_parent_ip(CALLER_ADDR1));
-	preempt_count() -= val;
+	__sub_preempt_count(val);
 }
 EXPORT_SYMBOL(sub_preempt_count);
 
@@ -4328,6 +4361,9 @@ need_resched:
 	if (likely(prev != next)) {
 		rq->nr_switches++;
 		rq->curr = next;
+#ifdef CONFIG_PREEMPT_COUNT_CPU
+		smp_wmb();
+#endif
 		++*switch_count;
 
 		context_switch(rq, prev, next); /* unlocks the rq */
@@ -4394,8 +4430,30 @@ static inline bool owner_running(struct mutex *lock, struct task_struct *owner)
  */
 int mutex_spin_on_owner(struct mutex *lock, struct task_struct *owner)
 {
+	unsigned int nrun;
+
 	if (!sched_feat(OWNER_SPIN))
 		return 0;
+
+	/*
+	 * Mutex spinning should be temporarily disabled if the load on
+	 * the current CPU is high. The load is considered high if there
+	 * are 2 or more active tasks waiting to run on this CPU. On the
+	 * other hand, if there is another task waiting and the global
+	 * load (calc_load_tasks - including uninterruptible tasks) is
+	 * bigger than 2X the # of CPUs available, it is also considered
+	 * to be high load.
+	 */
+	nrun = this_rq()->nr_running;
+	if (nrun >= 3)
+		return 0;
+	else if (nrun == 2) {
+		long active = atomic_long_read(&calc_load_tasks);
+		int  ncpu   = num_online_cpus();
+
+		if (active > 2*ncpu)
+			return 0;
+	}
 
 	rcu_read_lock();
 	while (owner_running(lock, owner)) {
@@ -7035,8 +7093,6 @@ static const struct cpumask *cpu_cpu_mask(int cpu)
 	return cpumask_of_node(cpu_to_node(cpu));
 }
 
-int sched_smt_power_savings = 0, sched_mc_power_savings = 0;
-
 struct sd_data {
 	struct sched_domain **__percpu sd;
 	struct sched_group **__percpu sg;
@@ -7740,99 +7796,6 @@ match2:
 	mutex_unlock(&sched_domains_mutex);
 }
 
-#if defined(CONFIG_SCHED_MC) || defined(CONFIG_SCHED_SMT)
-static void reinit_sched_domains(void)
-{
-	get_online_cpus();
-
-	/* Destroy domains first to force the rebuild */
-	partition_sched_domains(0, NULL, NULL);
-
-	rebuild_sched_domains();
-	put_online_cpus();
-}
-
-static ssize_t sched_power_savings_store(const char *buf, size_t count, int smt)
-{
-	unsigned int level = 0;
-
-	if (sscanf(buf, "%u", &level) != 1)
-		return -EINVAL;
-
-	/*
-	 * level is always be positive so don't check for
-	 * level < POWERSAVINGS_BALANCE_NONE which is 0
-	 * What happens on 0 or 1 byte write,
-	 * need to check for count as well?
-	 */
-
-	if (level >= MAX_POWERSAVINGS_BALANCE_LEVELS)
-		return -EINVAL;
-
-	if (smt)
-		sched_smt_power_savings = level;
-	else
-		sched_mc_power_savings = level;
-
-	reinit_sched_domains();
-
-	return count;
-}
-
-#ifdef CONFIG_SCHED_MC
-static ssize_t sched_mc_power_savings_show(struct sysdev_class *class,
-					   struct sysdev_class_attribute *attr,
-					   char *page)
-{
-	return sprintf(page, "%u\n", sched_mc_power_savings);
-}
-static ssize_t sched_mc_power_savings_store(struct sysdev_class *class,
-					    struct sysdev_class_attribute *attr,
-					    const char *buf, size_t count)
-{
-	return sched_power_savings_store(buf, count, 0);
-}
-static SYSDEV_CLASS_ATTR(sched_mc_power_savings, 0644,
-			 sched_mc_power_savings_show,
-			 sched_mc_power_savings_store);
-#endif
-
-#ifdef CONFIG_SCHED_SMT
-static ssize_t sched_smt_power_savings_show(struct sysdev_class *dev,
-					    struct sysdev_class_attribute *attr,
-					    char *page)
-{
-	return sprintf(page, "%u\n", sched_smt_power_savings);
-}
-static ssize_t sched_smt_power_savings_store(struct sysdev_class *dev,
-					     struct sysdev_class_attribute *attr,
-					     const char *buf, size_t count)
-{
-	return sched_power_savings_store(buf, count, 1);
-}
-static SYSDEV_CLASS_ATTR(sched_smt_power_savings, 0644,
-		   sched_smt_power_savings_show,
-		   sched_smt_power_savings_store);
-#endif
-
-int __init sched_create_sysfs_power_savings_entries(struct sysdev_class *cls)
-{
-	int err = 0;
-
-#ifdef CONFIG_SCHED_SMT
-	if (smt_capable())
-		err = sysfs_create_file(&cls->kset.kobj,
-					&attr_sched_smt_power_savings.attr);
-#endif
-#ifdef CONFIG_SCHED_MC
-	if (!err && mc_capable())
-		err = sysfs_create_file(&cls->kset.kobj,
-					&attr_sched_mc_power_savings.attr);
-#endif
-	return err;
-}
-#endif /* CONFIG_SCHED_MC || CONFIG_SCHED_SMT */
-
 /*
  * Update cpusets according to cpu_active mask.  If cpusets are
  * disabled, cpuset_update_active_cpus() becomes a simple wrapper
@@ -8367,6 +8330,9 @@ struct task_struct *curr_task(int cpu)
 void set_curr_task(int cpu, struct task_struct *p)
 {
 	cpu_curr(cpu) = p;
+#ifdef CONFIG_PREEMPT_COUNT_CPU
+	smp_wmb();
+#endif
 }
 
 #endif
