@@ -70,6 +70,14 @@ config TEGRA_PCI
 	help
 	  Adds PCIe Host controller driver for tegra based systems
 
+config TEGRA_AHB
+       bool "Enable AHB driver for NVIDIA Tegra SoCs"
+       default y
+       help
+         Adds AHB configuration functionality for NVIDIA Tegra SoCs,
+         which controls AHB bus master arbitration and some
+         perfomance parameters(priority, prefech size).
+
 comment "Tegra board type"
 
 config MACH_HARMONY
@@ -410,6 +418,13 @@ config TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
 	default n
 	help
 	 Also will restore to original cpu frequency governor when device is resumed
+
+config TEGRA_VARIANT_INFO
+       bool "Tegra3 variant info"
+       depends on ARCH_TEGRA_3x_SOC
+       default y
+       help
+         Tegra3 SOC variant info display via debugfs
 
 config TEGRA_STAT_MON
         bool "Enable H/W statistics monitor"
