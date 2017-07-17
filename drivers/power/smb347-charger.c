@@ -1123,55 +1123,39 @@ static int cable_type_detect(void)
 				retval = smb347_read(client, smb347_STS_REG_D);
 				SMB_NOTICE("Reg3E : 0x%02x\n", retval);
 				if (retval & APSD_OK) {
-						retval &= APSD_RESULT;
-					if (retval == APSD_CDP) {
-						printk(KERN_INFO "Cable: CDP\n");
-						charger->cur_cable_type = ac_cable;
-						success = battery_callback(ac_cable);
+					retval &= APSD_RESULT;
+					if (retval == APSD_HOST_MODE_CHARGING) {	// tmtmtm
+
+                        			if(usbhost_fastcharge_in_host_mode) {
+						    printk(KERN_INFO "Cable: host mode charging ac\n");
+						    charger->cur_cable_type = ac_cable;
+						    success = battery_callback(ac_cable);
 #ifdef TOUCH_CALLBACK_ENABLED
-	                                    touch_callback(ac_cable);
+                            		            touch_callback(ac_cable);
 #endif
-					} else if (retval == APSD_DCP) {
-					    // Asus power supply
-						printk(KERN_INFO "Cable: DCP\n");
-						charger->cur_cable_type = ac_cable;
-						success = battery_callback(ac_cable);
+                        			} else {
+						    printk(KERN_INFO "Cable: host mode charging usb\n");
+						    charger->cur_cable_type = usb_cable;
+						    success = battery_callback(usb_cable);
 #ifdef TOUCH_CALLBACK_ENABLED
-	                                    touch_callback(ac_cable);
+                            			    touch_callback(usb_cable);
 #endif
-					} else if (retval == APSD_OTHER) {
-						charger->cur_cable_type = ac_cable;
-						success = battery_callback(ac_cable);
-#ifdef TOUCH_CALLBACK_ENABLED
-	                                   touch_callback(ac_cable);
-#endif
-						printk(KERN_INFO "Cable: OTHER\n");
+     				               }
+					       host_mode_charging_state = 1; // tmtmtm
 					} else if (retval == APSD_SDP) {
 						printk(KERN_INFO "Cable: SDP\n");
 						charger->cur_cable_type = usb_cable;
 						success = battery_callback(usb_cable);
 #ifdef TOUCH_CALLBACK_ENABLED
-	                                    touch_callback(usb_cable);
+	                                    	touch_callback(usb_cable);
 #endif
-					} else if(retval == APSD_HOST_MODE_CHARGING) {	// tmtmtm
-
-                        if(usbhost_fastcharge_in_host_mode) {
-						    printk(KERN_INFO "Cable: host mode charging ac\n");
-						    charger->cur_cable_type = ac_cable;
-						    success = battery_callback(ac_cable);
+					} else if (retval == APSD_CDP || retval == APSD_DCP || retval == APSD_OTHER) {
+						printk(KERN_INFO "Cable: CDP / DCP / OTHER -> ac-cable\n");
+						charger->cur_cable_type = ac_cable;
+						success = battery_callback(ac_cable);
 #ifdef TOUCH_CALLBACK_ENABLED
-                            touch_callback(ac_cable);
+	                                    	touch_callback(ac_cable);
 #endif
-                        } else {
-						    printk(KERN_INFO "Cable: host mode charging usb\n");
-						    charger->cur_cable_type = usb_cable;
-						    success = battery_callback(usb_cable);
-#ifdef TOUCH_CALLBACK_ENABLED
-                            touch_callback(usb_cable);
-#endif
-                        }
-					    host_mode_charging_state = 1; // tmtmtm
-
 					} else {
 						charger->cur_cable_type = unknow_cable;
 						printk(KERN_INFO "Unkown Plug In Cable type !\n");
@@ -1363,7 +1347,7 @@ static void dockin_isr_work_function(struct work_struct *dat)
 static ssize_t smb347_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct i2c_client *client = charger->client;
-	uint8_t config_reg[15], cmd_reg[1], status_reg[10];
+	uint8_t config_reg[15], cmd_reg[2], status_reg[11];
 	char tmp_buf[64];
 	int i, cfg_ret, cmd_ret, sts_ret = 0;
 
