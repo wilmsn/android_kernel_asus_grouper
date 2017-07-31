@@ -527,6 +527,14 @@ config TEGRA_PREINIT_CLOCKS
 	  Preinitialize Tegra clocks to known states before actual full-
 	  scale clock initialization starts.
 
+config TEGRA3_LP_CORE_OVERDRIVE
+	bool "T3 LP Core Overdrive"
+	depends on ARCH_TEGRA_3x_SOC
+	default n
+	help
+	  Tegra3 Low Power (LP) Core Overdrive which unlocks
+	  full potential of LP core capabilities
+
 config USBHOST
 	bool "USBHOST related runtime configuration"
 	default y
