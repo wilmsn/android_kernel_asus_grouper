@@ -50,7 +50,6 @@
 #include "dc_reg.h"
 #include "dc_priv.h"
 #include "nvsd.h"
-#include <linux/gpio.h>
 
 #define TEGRA_CRC_LATCHED_DELAY		34
 
@@ -66,7 +65,6 @@
 
 static int no_vsync;
 static struct timeval t_suspend;
-#define grouper_lvds_shutdown		110
 
 static void _tegra_dc_controller_disable(struct tegra_dc *dc);
 
@@ -2665,8 +2663,6 @@ static void _tegra_dc_controller_disable(struct tegra_dc *dc)
 			msleep(50);
 		}
 	}
-
-	gpio_set_value(grouper_lvds_shutdown, 0);
 
 	if (dc->out_ops && dc->out_ops->disable)
 		dc->out_ops->disable(dc);
