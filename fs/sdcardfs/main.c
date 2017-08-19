@@ -295,7 +295,6 @@ out_iput:
 out_sput:
 	/* drop refs we took earlier */
 	atomic_dec(&lower_sb->s_active);
-	packagelist_destroy(sb_info->pkgl_id);
 out_freesbi:
 	kfree(SDCARDFS_SB(sb));
 	sb->s_fs_info = NULL;

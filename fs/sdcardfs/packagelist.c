@@ -326,7 +326,6 @@ static struct config_item *sdcardfs_packages_make_item(struct config_group *grou
 	package_appid = kzalloc(sizeof(struct package_appid), GFP_KERNEL);
 	if (!package_appid)
 		return ERR_PTR(-ENOMEM);
-	}
 
 	config_item_init_type_name(&package_appid->item, name,
 				   &package_appid_type);
