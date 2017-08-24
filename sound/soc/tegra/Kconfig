@@ -236,8 +236,7 @@ config HEADSET_FUNCTION
     default n
 
 config AUDIO_MIN_PERFLOCK
-
-	bool "Minimum Audio Playback performance lock
+	bool "Minimum Audio Playback performance lock"
 	depends on SND_SOC_TEGRA_RT5640
 	default n
 	help
