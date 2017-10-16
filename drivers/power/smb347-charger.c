@@ -1377,3 +1377,5 @@ MODULE_AUTHOR("Syed Rafiuddin <srafiuddin@nvidia.com>");
 MODULE_DESCRIPTION("smb347 Battery-Charger");
 MODULE_LICENSE("GPL");
 
+
+
