@@ -469,7 +469,16 @@ void tegra_init_speedo_data(void)
 	core_process_id = iv -1;
 	orig_core_process_id = core_process_id;
 #endif
-	core_process_id = 1; //iv -1;
+
+#ifdef CONFIG_TEGRA_CPU_OVERCLOCK
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	core_process_id = 2; /* fake it to behave as AP33 core variant 2 */
+#else
+	core_process_id = 1; /* fake it to behave as AP33 core variant 1 */
+#endif
+#else
+	core_process_id = iv -1;
+#endif
 
 	if (core_process_id == -1) {
 		pr_err("****************************************************");
@@ -547,9 +556,11 @@ int tegra_core_speedo_mv(void)
 	case 0:
 		return 1200;
 	case 1:
+#ifndef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
 		if ((cpu_speedo_id != 7) && (cpu_speedo_id != 8))
 			return 1200;
 		/* fall thru for T30L or T30SL */
+#endif
 	case 2:
 		if (cpu_speedo_id != 13)
 			return 1300;

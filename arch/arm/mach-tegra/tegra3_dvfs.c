@@ -749,11 +749,15 @@ static int __init get_core_nominal_mv_index(int speedo_id)
 	if (core_edp_limit)
 		mv = min(mv, core_edp_limit);
 
+	pr_info("core voltage => %i\n", mv);
+
 	/* Round nominal level down to the nearest core scaling step */
 	for (i = 0; i < MAX_DVFS_FREQS; i++) {
 		if ((core_millivolts[i] == 0) || (mv < core_millivolts[i]))
 			break;
 	}
+
+	pr_info("core_nominal_mv_index: %i\n", (i-1));
 
 	if (i == 0) {
 		pr_err("tegra3_dvfs: unable to adjust core dvfs table to"
@@ -768,7 +772,11 @@ void __init tegra_soc_init_dvfs(void)
 	int cpu_speedo_id = tegra_cpu_speedo_id();
 	int soc_speedo_id = tegra_soc_speedo_id();
 	int cpu_process_id = tegra_cpu_process_id();
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	int core_process_id = 2;
+#else
 	int core_process_id = tegra_core_process_id();
+#endif
 
 	int i;
 	int core_nominal_mv_index;

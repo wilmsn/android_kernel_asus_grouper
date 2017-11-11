@@ -1157,6 +1157,14 @@ config ARM_ERRATA_460075
 	  ACTLR register. Note that setting specific bits in the ACTLR register
 	  may not be available in non-secure mode.
 
+config ARM_ERRATA_716044
+	bool "ARM errata: an uncacheable load multiple instruction can cause a deadlock"
+	depends on CPU_V7
+	help
+	 Under some rare circumstances, an uncacheable load multiple
+	 instruction (LDRD, LDM, VLDM, VLD1, VLD2, VLD3, VLD4) can cause
+	 a processor deadlock.
+
 config ARM_ERRATA_742230
 	bool "ARM errata: DMB operation may be faulty"
 	depends on CPU_V7 && SMP
@@ -1339,6 +1347,7 @@ config PL310_ERRATA_769419
 endmenu
 
 source "arch/arm/common/Kconfig"
+source "arch/arm/hotplug/Kconfig"
 
 menu "Bus support"
 
@@ -2175,8 +2184,7 @@ config NEON
 
 config KERNEL_MODE_NEON
 	bool "Support for NEON in kernel mode"
-	default n
-	depends on NEON
+	depends on NEON && AEABI
 	help
 	  Say Y to include support for NEON in kernel mode.
 

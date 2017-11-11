@@ -4617,9 +4617,15 @@ static struct cpufreq_frequency_table freq_table_1p3GHz[] = {
 	{ 0,   51000 },
 	{ 1,  102000 },
 	{ 2,  204000 },
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	{ 3,  370000 },
+	{ 4,  513000 },
+	{ 5,  620000 },
+#else
 	{ 3,  340000 },
 	{ 4,  475000 },
 	{ 5,  620000 },
+#endif
 	{ 6,  760000 },
 	{ 7,  860000 },
 	{ 8, 1000000 },
@@ -4634,7 +4640,11 @@ static struct cpufreq_frequency_table freq_table_1p4GHz[] = {
 	{ 1,  102000 },
 	{ 2,  204000 },
 	{ 3,  370000 },
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	{ 4,  513000 },
+#else
 	{ 4,  475000 },
+#endif
 	{ 5,  620000 },
 	{ 6,  760000 },
 	{ 7,  860000 },
@@ -4650,9 +4660,16 @@ static struct cpufreq_frequency_table freq_table_1p5GHz[] = {
 	{ 0,   51000 },
 	{ 1,  102000 },
 	{ 2,  204000 },
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	{ 3,  370000 },
+	{ 4,  513000 },
+	{ 5,  620000 },
+#else
 	{ 3,  340000 },
 	{ 4,  475000 },
 	{ 5,  620000 },
+//	{ 5,  640000 },
+#endif
 	{ 6,  760000 },
 	{ 7,  860000 },
 	{ 8, 1000000 },
@@ -4681,6 +4698,12 @@ static struct cpufreq_frequency_table freq_table_1p6GHz[] = {
 	{ 5,  666000 },
 #endif
 #ifdef CONFIG_LP_OC_620
+	{ 3,  370000 },
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	{ 4,  513000 },
+#else
+	{ 4,  475000 },
+#endif
 	{ 5,  620000 },
 #endif
 #ifdef CONFIG_LP_OC_555
@@ -4844,9 +4867,12 @@ static int clip_cpu_rate_limits(
 		       cpu_clk_lp->max_rate, ret ? "outside" : "at the bottom");
 		return ret;
 	}
-	
-	/* force idx for max LP*/
-	idx=5;
+	//faux123 debug
+	pr_info("CPU Freq LP Index: %i\n", idx);
+
+#ifdef CONFIG_TEGRA3_LP_CORE_OVERDRIVE
+	idx = 5;
+#endif
 	cpu_clk_lp->max_rate = freq_table[idx].frequency * 1000;
 	idx=4;
 	cpu_clk_g->min_rate = freq_table[idx-1].frequency * 1000;

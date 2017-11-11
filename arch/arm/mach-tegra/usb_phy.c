@@ -29,18 +29,26 @@
 #include <linux/gpio.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/ulpi.h>
+#ifdef CONFIG_MACH_GROUPER
 #include <linux/mfd/tps6591x.h>
+#endif
 #include <asm/mach-types.h>
+#ifdef CONFIG_MACH_GROUPER
 #include <mach/board-grouper-misc.h>
+#endif
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
 #include <mach/pinmux.h>
 #include "fuse.h"
 #include "board-grouper.h"
+#ifdef CONFIG_TEGRA_BB_XMM_POWER
 #include "baseband-xmm-power.h"
+#endif
 
+#ifdef CONFIG_MACH_GROUPER
 #define TPS6591X_GPIO_BASE	TEGRA_NR_GPIOS
 #define AC_PRESENT_GPIO		(TPS6591X_GPIO_BASE + TPS6591X_GPIO_GP4)
+#endif
 
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 #define USB_USBCMD		0x140
@@ -2331,7 +2339,9 @@ static int uhsic_phy_power_on(struct tegra_usb_phy *phy, bool is_dpd)
 #endif
 
 	if (uhsic_config->enable_gpio != -1) {
+#ifdef CONFIG_TEGRA_BB_XMM_POWER
 		baseband_xmm_enable_hsic_power(1);
+#endif
 		gpio_set_value_cansleep(uhsic_config->enable_gpio, 1);
 		/* keep hsic reset asserted for 1 ms */
 		udelay(1000);
@@ -2465,7 +2475,9 @@ static int uhsic_phy_power_off(struct tegra_usb_phy *phy, bool is_dpd)
 		gpio_set_value_cansleep(uhsic_config->enable_gpio, 0);
 		/* keep hsic reset de-asserted for 1 ms */
 		udelay(1000);
+#ifdef CONFIG_TEGRA_BB_XMM_POWER
 		baseband_xmm_enable_hsic_power(0);
+#endif
 	}
 	if (uhsic_config->post_phy_off && uhsic_config->post_phy_off())
 		return -EAGAIN;
@@ -2521,9 +2533,11 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 	struct tegra_ulpi_config *uhsic_config;
 	int reset_gpio, enable_gpio;
 #endif
+#ifdef CONFIG_MACH_GROUPER
 	unsigned int pcb_id_version = grouper_query_pcba_revision();
 	unsigned int project_id = grouper_get_project_id();
 	int pmu_hw = grouper_query_pmic_id();
+#endif
 
 	phy = kzalloc(sizeof(struct tegra_usb_phy), GFP_KERNEL);
 	if (!phy)
@@ -2585,6 +2599,7 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 	if (phy->usb_phy_type == TEGRA_USB_PHY_TYPE_UTMIP) {
 		err = utmip_pad_open(phy);
 		phy->xcvr_setup_value = tegra_phy_xcvr_setup_value(phy->config);
+#ifdef CONFIG_MACH_GROUPER
 		if (phy->instance == 0) {
 			if (project_id == GROUPER_PROJECT_NAKASI) {
 				if (pcb_id_version > 0x2)
@@ -2598,9 +2613,9 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 
 			if (phy->xcvr_setup_value > 63)
 				phy->xcvr_setup_value = 63;
-
 			pr_info("phy->instance = %d, phy->xcvr_setup_value = %d\n", phy->instance, phy->xcvr_setup_value);
 		}
+#endif
 		if (err < 0)
 			goto err1;
 	} else if (phy->usb_phy_type == TEGRA_USB_PHY_TYPE_LINK_ULPI) {
@@ -2660,6 +2675,7 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 		phy->reg_vdd = NULL;
 	}
 
+#ifdef CONFIG_MACH_GROUPER
 	if (instance == 0 && pmu_hw == GROUPER_PMIC_MAXIM) {
 		usb_phy_data[0].vbus_irq = MAX77663_IRQ_BASE + MAX77663_IRQ_ACOK_RISING;
 		printk(KERN_INFO "%s instance %d MAX77663_IRQ_ACOK_RISING\n", __func__, instance);
@@ -2676,9 +2692,12 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 		usb_phy_data[0].vbus_irq = gpio_to_irq(AC_PRESENT_GPIO);
 		printk(KERN_INFO "%s instance %d TI AC_PRESENT_GPIO = %d \n", __func__, instance, AC_PRESENT_GPIO);
 	}
+#endif
 
 	if (instance == 0 && usb_phy_data[0].vbus_irq) {
+#ifdef CONFIG_MACH_GROUPER
 		if (pmu_hw == GROUPER_PMIC_MAXIM) {
+#endif
 			err = request_threaded_irq(usb_phy_data[0].vbus_irq, NULL, usb_phy_vbus_irq_thr, IRQF_SHARED,
 				"usb_phy_vbus", phy);
 			if (err) {
@@ -2686,6 +2705,7 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 				goto err1;
 			}
 
+#ifdef CONFIG_MACH_GROUPER
 			err = request_threaded_irq(MAX77663_IRQ_BASE + MAX77663_IRQ_ACOK_FALLING , NULL,
 				usb_cable_remove_irq_thr, IRQF_SHARED, "usb_cable_remove", phy);
 
@@ -2701,6 +2721,7 @@ struct tegra_usb_phy *tegra_usb_phy_open(int instance, void __iomem *regs,
 				goto err1;
 			}
 		}
+#endif
 	}
 
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC

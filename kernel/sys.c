@@ -126,7 +126,10 @@ EXPORT_SYMBOL(cad_pid);
 
 void (*pm_power_off_prepare)(void);
 
- extern void disable_auto_hotplug(void);
+#ifndef CONFIG_CPUQUIET_FRAMEWORK
+extern void disable_auto_hotplug(void);
+#endif
+
 /*
  * Returns true if current's euid is same as p's uid or euid,
  * or has CAP_SYS_NICE to p's user_ns.
@@ -368,7 +371,9 @@ EXPORT_SYMBOL(unregister_reboot_notifier);
  */
 void kernel_restart(char *cmd)
 {
+#ifndef CONFIG_CPUQUIET_FRAMEWORK
 	disable_auto_hotplug();
+#endif
 	kernel_restart_prepare(cmd);
 	if (!cmd)
 		printk(KERN_EMERG "Restarting system.\n");
@@ -419,7 +424,9 @@ void kernel_power_off(void)
 		kernel_restart(cmd);
 	 }
 
+#ifndef CONFIG_CPUQUIET_FRAMEWORK
 	disable_auto_hotplug();
+#endif
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
 	if (pm_power_off_prepare)
 		pm_power_off_prepare();
@@ -656,6 +663,7 @@ static int set_user(struct cred *new)
 
 	free_uid(new->user);
 	new->user = new_user;
+	sched_autogroup_create_attach(current);
 	return 0;
 }
 
@@ -1165,7 +1173,7 @@ out:
 	write_unlock_irq(&tasklist_lock);
 	if (err > 0) {
 		proc_sid_connector(group_leader);
-		sched_autogroup_create_attach(group_leader);
+		
 	}
 	return err;
 }
@@ -1812,6 +1820,9 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			break;
 		case PR_GET_TIMERSLACK:
 			error = current->timer_slack_ns;
+			break;
+		case PR_GET_EFFECTIVE_TIMERSLACK:
+			error = task_get_effective_timer_slack(current);
 			break;
 		case PR_SET_TIMERSLACK:
 			if (arg2 <= 0)

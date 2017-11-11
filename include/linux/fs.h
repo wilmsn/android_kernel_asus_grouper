@@ -109,6 +109,9 @@ struct inodes_stat_t {
 /* File is opened with O_PATH; almost nothing can be done with it */
 #define FMODE_PATH		((__force fmode_t)0x4000)
 
+/* File hasn't page cache and can't be mmaped, for stackable filesystem */
+#define FMODE_NONMAPPABLE       ((__force fmode_t)0x400000)
+
 /* File was opened by fanotify and shouldn't generate fanotify events */
 #define FMODE_NONOTIFY		((__force fmode_t)0x1000000)
 
@@ -1597,6 +1600,7 @@ struct file_operations {
 	int (*setlease)(struct file *, long, struct file_lock **);
 	long (*fallocate)(struct file *file, int mode, loff_t offset,
 			  loff_t len);
+	struct file* (*get_lower_file)(struct file *f);
 };
 
 struct inode_operations {
@@ -2099,6 +2103,7 @@ static inline int thaw_bdev(struct block_device *bdev, struct super_block *sb)
 }
 #endif
 extern int sync_filesystem(struct super_block *);
+extern void sync_filesystems(int wait);
 extern const struct file_operations def_blk_fops;
 extern const struct file_operations def_chr_fops;
 extern const struct file_operations bad_sock_fops;

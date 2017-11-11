@@ -457,9 +457,7 @@ static DEFINE_PER_CPU(struct clock_event_device, percpu_clockevent);
 static void ipi_timer(void)
 {
 	struct clock_event_device *evt = &__get_cpu_var(percpu_clockevent);
-	irq_enter();
 	evt->event_handler(evt);
-	irq_exit();
 }
 
 #ifdef CONFIG_LOCAL_TIMERS
@@ -558,7 +556,7 @@ static void ipi_cpu_stop(unsigned int cpu)
 		spin_unlock(&stop_lock);
 	}
 
-	set_cpu_online(cpu, false);
+	set_cpu_active(cpu, false);
 
 	local_fiq_disable();
 	local_irq_disable();
@@ -632,7 +630,9 @@ asmlinkage void __exception_irq_entry do_IPI(int ipinr, struct pt_regs *regs)
 
 	switch (ipinr) {
 	case IPI_TIMER:
+		irq_enter();
 		ipi_timer();
+		irq_exit();
 		break;
 
 	case IPI_RESCHEDULE:
@@ -687,10 +687,10 @@ void smp_send_stop(void)
 
 	/* Wait up to one second for other CPUs to stop */
 	timeout = USEC_PER_SEC;
-	while (num_online_cpus() > 1 && timeout--)
+	while (num_active_cpus() > 1 && timeout--)
 		udelay(1);
 
-	if (num_online_cpus() > 1)
+	if (num_active_cpus() > 1)
 		pr_warning("SMP: failed to stop secondary CPUs\n");
 }
 
