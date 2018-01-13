@@ -347,12 +347,11 @@ int snd_timer_close(struct snd_timer_instance *timeri)
 		/* remove slave links */
 		list_for_each_entry_safe(slave, tmp, &timeri->slave_list_head,
 					 open_list) {
-			spin_lock_irq(&slave_active_lock);
-			_snd_timer_stop(slave, 1, SNDRV_TIMER_EVENT_RESOLUTION);
 			list_move_tail(&slave->open_list, &snd_timer_slave_list);
 			slave->master = NULL;
 			slave->timer = NULL;
-			spin_unlock_irq(&slave_active_lock);
+			list_del_init(&slave->ack_list);
+			list_del_init(&slave->active_list);
 		}
                 /* release a card refcount for safe disconnection */
                 if (timer->card)
@@ -492,7 +491,6 @@ static int snd_timer_start_slave(struct snd_timer_instance *timeri,
 static int snd_timer_stop1(struct snd_timer_instance *timeri, bool stop)
 {
 	struct snd_timer *timer;
-	int result = -EINVAL;
         int result = 0;
 	unsigned long flags;
 
