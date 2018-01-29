@@ -133,11 +133,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int selected_tasksize = 0;
 	int selected_oom_adj;
 	int array_size = ARRAY_SIZE(lowmem_adj);
-	int other_free = global_page_state(NR_FREE_PAGES) - totalreserve_pages;
-	int other_file = global_page_state(NR_FILE_PAGES) -
-						global_page_state(NR_SHMEM) -
-						global_page_state(NR_UNEVICTABLE) -
- 						total_swapcache_pages;
+	int other_free;
+	int other_file;
 
 	/*
 	 * If we already have a death outstanding, then
@@ -149,6 +146,16 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	if (lowmem_deathpending &&
 	    time_before_eq(jiffies, lowmem_deathpending_timeout))
 		return 0;
+
+	other_free = global_page_state(NR_FREE_PAGES);
+
+	if (global_page_state(NR_SHMEM) + total_swapcache_pages <
+		global_page_state(NR_FILE_PAGES))
+		other_file = global_page_state(NR_FILE_PAGES) -
+						global_page_state(NR_SHMEM) -
+						total_swapcache_pages;
+	else
+		other_file = 0;
 
 	if (lowmem_adj_size < array_size)
 		array_size = lowmem_adj_size;
