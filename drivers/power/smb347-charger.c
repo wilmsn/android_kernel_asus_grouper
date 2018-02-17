@@ -447,7 +447,8 @@ static int smb347_pin_control(bool state)
 	struct i2c_client *client = charger->client;
 	u8 ret = 0;
 
-	printk("smb347_charger_enable %d\n",state);
+	mutex_lock(&charger->pinctrl_lock);
+
 	if (state) {
 		/*Pin Controls -active low */
 		ret = smb347_update_reg(client, smb347_PIN_CTRL, PIN_ACT_LOW);
@@ -1312,7 +1313,7 @@ static void inok_isr_work_function(struct work_struct *dat)
 				"otg..\n", __func__);
 	}
 
-	//smb347_clear_interrupts(client);      // FIXME???
+	smb347_clear_interrupts(client);
 	printk("inok_isr_work_function external power available hostmode=%d\n",usbhost_hostmode);
 }
 
@@ -1347,7 +1348,7 @@ static void dockin_isr_work_function(struct work_struct *dat)
 static ssize_t smb347_reg_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct i2c_client *client = charger->client;
-	uint8_t config_reg[15], cmd_reg[1], status_reg[10];
+	uint8_t config_reg[15], cmd_reg[2], status_reg[11];
 	char tmp_buf[64];
 	int i, cfg_ret, cmd_ret, sts_ret = 0;
 
@@ -1750,4 +1751,6 @@ module_exit(smb347_exit);
 MODULE_AUTHOR("Syed Rafiuddin <srafiuddin@nvidia.com>");
 MODULE_DESCRIPTION("smb347 Battery-Charger");
 MODULE_LICENSE("GPL");
+
+
 
