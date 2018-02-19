@@ -303,7 +303,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 		}
 		oom_adj = sig->oom_adj;
-		if (oom_adj < min_adj) {
+		if (oom_adj < selected_oom_adj) {
 			task_unlock(p);
 			continue;
 		}
@@ -311,13 +311,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
-		if (selected) {
-			if (oom_adj < selected_oom_adj)
-				continue;
-			if (oom_adj == selected_oom_adj &&
-			    tasksize <= selected_tasksize)
-				continue;
-		}
+		if (selected && oom_adj == selected_oom_adj && 
+			tasksize <= selected_tasksize) 
+			continue; 
 		selected = p;
 		selected_tasksize = tasksize;
 		selected_oom_adj = oom_adj;
