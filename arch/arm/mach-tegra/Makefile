@@ -28,8 +28,7 @@ obj-y                                   += pm.o
 obj-$(CONFIG_TEGRA_WDT_RECOVERY)        += wdt-recovery.o
 obj-$(CONFIG_PM_SLEEP)                  += pm-irq.o
 obj-y                                   += gic.o
-#obj-y                           		+= otgfi.o          # tmtmtm
-obj-$(CONFIG_USBHOST)              	    += usbhost.o        # tmtmtm
+obj-$(CONFIG_USBHOST)         		+= usbhost.o        # tmtmtm
 
 
 obj-y                                   += sleep.o
@@ -78,6 +77,11 @@ obj-$(CONFIG_SMP)                       += platsmp.o
 obj-$(CONFIG_HOTPLUG_CPU)               += hotplug.o
 obj-y                                   += headsmp.o
 obj-y                                   += reset.o
+obj-$(CONFIG_ARCH_TEGRA_3x_SOC)         += pinmux-t3-tables.o
+obj-$(CONFIG_LOCAL_TIMERS)              += localtimer.o
+obj-$(CONFIG_SMP)                       += platsmp.o
+obj-$(CONFIG_HOTPLUG_CPU)               += hotplug.o
+obj-y                                   += headsmp.o
 obj-$(CONFIG_TEGRA_SYSTEM_DMA)          += dma.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
 ifeq ($(CONFIG_TEGRA_AUTO_HOTPLUG),y)
@@ -147,13 +151,6 @@ obj-${CONFIG_MACH_ARUBA}                += board-aruba-sdhci.o
 obj-${CONFIG_MACH_ARUBA}                += board-aruba-sensors.o
 
 obj-${CONFIG_MACH_WHISTLER}             += board-whistler.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-pinmux.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-sdhci.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-power.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-panel.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-sensors.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-kbc.o
-obj-${CONFIG_MACH_WHISTLER}             += board-whistler-baseband.o
 obj-${CONFIG_MACH_WHISTLER}             += board-whistler-memory.o
 
 obj-${CONFIG_MACH_CARDHU}               += board-cardhu.o
@@ -205,7 +202,8 @@ obj-${CONFIG_MACH_GROUPER}              += board-grouper-power.o
 obj-${CONFIG_MACH_GROUPER}              += board-grouper-power-ti.o
 obj-${CONFIG_MACH_GROUPER}              += board-grouper-sdhci.o
 obj-${CONFIG_MACH_GROUPER}              += board-grouper-sensors.o
-
+obj-${CONFIG_MACH_GROUPER}              += board-touch-grouper-synaptics-spi.o
+ 
 obj-${CONFIG_TEGRA_BB_XMM_POWER}        += baseband-xmm-power.o
 obj-${CONFIG_TEGRA_BB_XMM_POWER2}       += baseband-xmm-power2.o
 
