@@ -469,7 +469,6 @@ static int sdcardfs_mknod(struct inode *dir, struct dentry *dentry, int mode,
 out:
 	mnt_drop_write(lower_path.mnt);
 out_unlock:
-	unlock_dir(lower_parent_dentry);
 	sdcardfs_put_lower_path(dentry, &lower_path);
 	REVERT_CRED();
 	return err;
