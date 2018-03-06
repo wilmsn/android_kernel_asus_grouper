@@ -136,6 +136,7 @@ struct wake_lock charger_wakelock;
 static unsigned int project_id;
 static unsigned int pcba_ver;
 static int gpio_dock_in = 0;
+static int charge_en_flag = 1;
 static unsigned usb_det_cable_type = non_cable;
 
 extern int usbhost_fixed_install_mode;
@@ -479,6 +480,7 @@ int smb347_charger_enable(bool state)
 								__func__);
 		goto error;
 	}
+	charge_en_flag = state;
 	smb347_pin_control(state);
 
 	ret = smb347_volatile_writes(client, smb347_DISABLE_WRITE);
@@ -514,7 +516,8 @@ smb347_set_InputCurrentlimit(struct i2c_client *client, u32 current_limit)
 	}
 
 	/* disable charger */
-	smb347_charger_enable(0);
+	if (charge_en_flag)
+		smb347_pin_control(0);
 
 	/* AICL disable */
 	retval = smb347_read(client, smb347_VRS_FUNC);
@@ -584,7 +587,8 @@ smb347_set_InputCurrentlimit(struct i2c_client *client, u32 current_limit)
 	}
 
 	/* enable charger */
-	smb347_charger_enable(0);
+	if (charge_en_flag)
+		smb347_pin_control(1);
 
 	/* Disable volatile writes to registers */
 	ret = smb347_volatile_writes(client, smb347_DISABLE_WRITE);
@@ -1309,7 +1313,7 @@ static void inok_isr_work_function(struct work_struct *dat)
 				"otg..\n", __func__);
 	}
 
-	//smb347_clear_interrupts(client);
+	smb347_clear_interrupts(client);
 	printk("inok_isr_work_function external power available hostmode=%d\n",usbhost_hostmode);
 }
 
