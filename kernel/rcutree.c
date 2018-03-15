@@ -118,7 +118,6 @@ static int rcu_scheduler_fully_active __read_mostly;
  */
 static DEFINE_PER_CPU(struct task_struct *, rcu_cpu_kthread_task);
 DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
-DEFINE_PER_CPU(int, rcu_cpu_kthread_cpu);
 DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
 DEFINE_PER_CPU(char, rcu_cpu_has_work);
 
@@ -1116,8 +1115,6 @@ static void __rcu_offline_cpu(int cpu, struct rcu_state *rsp)
 	struct rcu_data *rdp = per_cpu_ptr(rsp->rda, cpu);
 	struct rcu_node *rnp;
 
-	rcu_stop_cpu_kthread(cpu);
-
 	/* Exclude any attempts to start a new grace period. */
 	raw_spin_lock_irqsave(&rsp->onofflock, flags);
 
@@ -1928,11 +1925,9 @@ static int __cpuinit rcu_cpu_notify(struct notifier_block *self,
 	case CPU_ONLINE:
 	case CPU_DOWN_FAILED:
 		rcu_node_kthread_setaffinity(rnp, -1);
-		rcu_cpu_kthread_setrt(cpu, 1);
 		break;
 	case CPU_DOWN_PREPARE:
 		rcu_node_kthread_setaffinity(rnp, cpu);
-		rcu_cpu_kthread_setrt(cpu, 0);
 		break;
 	case CPU_DYING:
 	case CPU_DYING_FROZEN:
