@@ -474,6 +474,10 @@ struct rq {
 #endif
 	int skip_clock_update;
 
+	/* time-based average load */
+	u64 nr_last_stamp;
+	unsigned int ave_nr_running;
+
 	/* capture load from *all* tasks on this cpu: */
 	struct load_weight load;
 	unsigned long nr_load_updates;
@@ -3385,6 +3389,28 @@ unsigned long nr_iowait(void)
 		sum += atomic_read(&cpu_rq(i)->nr_iowait);
 
 	return sum;
+}
+
+unsigned long avg_nr_running(void)
+{
+	unsigned long i, sum = 0;
+
+	for_each_online_cpu(i)
+	sum += cpu_rq(i)->ave_nr_running;
+
+	return sum;
+}
+
+unsigned long get_avg_nr_running(unsigned int cpu)
+{
+	struct rq *q;
+
+	if (cpu >= nr_cpu_ids)
+		return 0;
+
+	q = cpu_rq(cpu);
+
+	return q->ave_nr_running;
 }
 
 unsigned long nr_iowait_cpu(int cpu)
