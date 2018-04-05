@@ -19,6 +19,7 @@
 #include <linux/pagemap.h>
 #include <linux/init.h>
 #include <linux/highmem.h>
+#include <linux/vmpressure.h>
 #include <linux/vmstat.h>
 #include <linux/file.h>
 #include <linux/writeback.h>
@@ -97,6 +98,9 @@ struct scan_control {
 
 	int order;
 
+	/* Scan (total_size >> priority) pages at once */
+	int priority;
+
 	/*
 	 * Intend to reclaim enough continuous memory rather than reclaim
 	 * enough amount of memory. i.e, mode for high order allocation.
@@ -104,7 +108,7 @@ struct scan_control {
 	reclaim_mode_t reclaim_mode;
 
 	/* Which cgroup do we reclaim from */
-	struct mem_cgroup *mem_cgroup;
+	struct mem_cgroup *target_mem_cgroup;
 
 	/*
 	 * Nodemask of nodes allowed by the caller. If NULL, all nodes
@@ -153,7 +157,7 @@ static LIST_HEAD(shrinker_list);
 static DECLARE_RWSEM(shrinker_rwsem);
 
 #ifdef CONFIG_CGROUP_MEM_RES_CTLR
-#define scanning_global_lru(sc)	(!(sc)->mem_cgroup)
+#define scanning_global_lru(sc)	(!(sc)->target_mem_cgroup)
 #else
 #define scanning_global_lru(sc)	(1)
 #endif
@@ -162,7 +166,7 @@ static struct zone_reclaim_stat *get_reclaim_stat(struct zone *zone,
 						  struct scan_control *sc)
 {
 	if (!scanning_global_lru(sc))
-		return mem_cgroup_get_reclaim_stat(sc->mem_cgroup, zone);
+		return mem_cgroup_get_reclaim_stat(sc->target_mem_cgroup, zone);
 
 	return &zone->reclaim_stat;
 }
@@ -171,7 +175,7 @@ static unsigned long zone_nr_lru_pages(struct zone *zone,
 				struct scan_control *sc, enum lru_list lru)
 {
 	if (!scanning_global_lru(sc))
-		return mem_cgroup_zone_nr_lru_pages(sc->mem_cgroup,
+		return mem_cgroup_zone_nr_lru_pages(sc->target_mem_cgroup,
 				zone_to_nid(zone), zone_idx(zone), BIT(lru));
 
 	return zone_page_state(zone, NR_LRU_BASE + lru);
@@ -702,7 +706,7 @@ static enum page_references page_check_references(struct page *page,
 	int referenced_ptes, referenced_page;
 	unsigned long vm_flags;
 
-	referenced_ptes = page_referenced(page, 1, sc->mem_cgroup, &vm_flags);
+	referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup, &vm_flags);
 	referenced_page = TestClearPageReferenced(page);
 
 	/* Lumpy reclaim - ignore references */
@@ -1531,7 +1535,7 @@ shrink_inactive_list(unsigned long nr_to_scan, struct zone *zone,
 			&page_list, &nr_scanned, sc->order,
 			sc->reclaim_mode & RECLAIM_MODE_LUMPYRECLAIM ?
 					ISOLATE_BOTH : ISOLATE_INACTIVE,
-			zone, sc->mem_cgroup,
+			zone, sc->target_mem_cgroup,
 			0, file);
 		/*
 		 * mem_cgroup_isolate_pages() keeps track of
@@ -1586,7 +1590,7 @@ zone_id_shrink_pagelist(struct zone *zone, struct list_head *page_list)
 		.may_unmap = 1,
 		.may_swap = 1,
 		.order = 0,
-		.mem_cgroup = NULL,
+		.target_mem_cgroup = NULL,
 		.nodemask = NULL,
 	};
 
@@ -1679,7 +1683,7 @@ static void shrink_active_list(unsigned long nr_pages, struct zone *zone,
 		nr_taken = mem_cgroup_isolate_pages(nr_pages, &l_hold,
 						&pgscanned, sc->order,
 						ISOLATE_ACTIVE, zone,
-						sc->mem_cgroup, 1, file);
+						sc->target_mem_cgroup, 1, file);
 		/*
 		 * mem_cgroup_isolate_pages() keeps track of
 		 * scanned pages on its own.
@@ -1706,7 +1710,7 @@ static void shrink_active_list(unsigned long nr_pages, struct zone *zone,
 			continue;
 		}
 
-		if (page_referenced(page, 0, sc->mem_cgroup, &vm_flags)) {
+		if (page_referenced(page, 0, sc->target_mem_cgroup, &vm_flags)) {
 			nr_rotated += hpage_nr_pages(page);
 			/*
 			 * Identify referenced, file-backed active pages and
@@ -1783,7 +1787,7 @@ static int inactive_anon_is_low(struct zone *zone, struct scan_control *sc)
 	if (scanning_global_lru(sc))
 		low = inactive_anon_is_low_global(zone);
 	else
-		low = mem_cgroup_inactive_anon_is_low(sc->mem_cgroup);
+		low = mem_cgroup_inactive_anon_is_low(sc->target_mem_cgroup);
 	return low;
 }
 #else
@@ -1826,7 +1830,7 @@ static int inactive_file_is_low(struct zone *zone, struct scan_control *sc)
 	if (scanning_global_lru(sc))
 		low = inactive_file_is_low_global(zone);
 	else
-		low = mem_cgroup_inactive_file_is_low(sc->mem_cgroup);
+		low = mem_cgroup_inactive_file_is_low(sc->target_mem_cgroup);
 	return low;
 }
 
@@ -1857,7 +1861,7 @@ static int vmscan_swappiness(struct scan_control *sc)
 {
 	if (scanning_global_lru(sc))
 		return vm_swappiness;
-	return mem_cgroup_swappiness(sc->mem_cgroup);
+	return mem_cgroup_swappiness(sc->target_mem_cgroup);
 }
 
 /*
@@ -2062,15 +2066,16 @@ static inline bool should_continue_reclaim(struct zone *zone,
 static void shrink_zone(int priority, struct zone *zone,
 				struct scan_control *sc)
 {
+	unsigned long nr_reclaimed, nr_scanned;
 	unsigned long nr[NR_LRU_LISTS];
 	unsigned long nr_to_scan;
 	enum lru_list l;
-	unsigned long nr_reclaimed, nr_scanned;
 	unsigned long nr_to_reclaim = sc->nr_to_reclaim;
 
 restart:
-	nr_reclaimed = 0;
+	nr_reclaimed = sc->nr_reclaimed;
 	nr_scanned = sc->nr_scanned;
+
 	get_scan_count(zone, sc, nr, priority);
 
 	while (nr[LRU_INACTIVE_ANON] || nr[LRU_ACTIVE_FILE] ||
@@ -2111,6 +2116,10 @@ restart:
 		goto restart;
 
 	throttle_vm_writeout(sc->gfp_mask);
+
+	vmpressure(sc->gfp_mask, sc->target_mem_cgroup,
+		   sc->nr_scanned - nr_scanned,
+		   sc->nr_reclaimed - nr_reclaimed);
 }
 
 /*
@@ -2228,9 +2237,10 @@ static unsigned long do_try_to_free_pages(struct zonelist *zonelist,
 		count_vm_event(ALLOCSTALL);
 
 	for (priority = DEF_PRIORITY; priority >= 0; priority--) {
+		vmpressure_prio(sc->gfp_mask, sc->target_mem_cgroup, sc->priority);
 		sc->nr_scanned = 0;
 		if (!priority)
-			disable_swap_token(sc->mem_cgroup);
+			disable_swap_token(sc->target_mem_cgroup);
 		shrink_zones(priority, zonelist, sc);
 		/*
 		 * Don't shrink slabs when reclaiming memory from
@@ -2314,7 +2324,7 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 		.may_unmap = 1,
 		.may_swap = 1,
 		.order = order,
-		.mem_cgroup = NULL,
+		.target_mem_cgroup = NULL,
 		.nodemask = nodemask,
 	};
 	struct shrink_control shrink = {
@@ -2346,7 +2356,7 @@ unsigned long mem_cgroup_shrink_node_zone(struct mem_cgroup *mem,
 		.may_unmap = 1,
 		.may_swap = !noswap,
 		.order = 0,
-		.mem_cgroup = mem,
+		.target_mem_cgroup = mem,
 	};
 
 	sc.gfp_mask = (gfp_mask & GFP_RECLAIM_MASK) |
@@ -2384,7 +2394,7 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *mem_cont,
 		.may_swap = !noswap,
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
 		.order = 0,
-		.mem_cgroup = mem_cont,
+		.target_mem_cgroup = mem_cont,
 		.nodemask = NULL, /* we don't care the placement */
 		.gfp_mask = (gfp_mask & GFP_RECLAIM_MASK) |
 				(GFP_HIGHUSER_MOVABLE & ~GFP_RECLAIM_MASK),
@@ -2534,7 +2544,7 @@ static unsigned long balance_pgdat(pg_data_t *pgdat, int order,
 		 */
 		.nr_to_reclaim = ULONG_MAX,
 		.order = order,
-		.mem_cgroup = NULL,
+		.target_mem_cgroup = NULL,
 	};
 	struct shrink_control shrink = {
 		.gfp_mask = sc.gfp_mask,

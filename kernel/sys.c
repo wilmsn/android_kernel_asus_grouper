@@ -1804,7 +1804,7 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			error = prctl_get_seccomp();
 			break;
 		case PR_SET_SECCOMP:
-			error = prctl_set_seccomp(arg2);
+			error = prctl_set_seccomp(arg2, (char __user *)arg3);
 			break;
 		case PR_GET_TSC:
 			error = GET_TSC_CTL(arg2);
@@ -1868,11 +1868,11 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 				error = PR_MCE_KILL_DEFAULT;
 			break;
 		case PR_SET_TIMERSLACK_PID:
-			if (current->pid != (pid_t)arg3 &&
+			if (task_pid_vnr(current) != (pid_t)arg3 &&
 					!capable(CAP_SYS_NICE))
 				return -EPERM;
 			rcu_read_lock();
-			tsk = find_task_by_pid_ns((pid_t)arg3, &init_pid_ns);
+			tsk = find_task_by_vpid((pid_t)arg3);
 			if (tsk == NULL) {
 				rcu_read_unlock();
 				return -EINVAL;
@@ -1891,12 +1891,12 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			if (arg2 != 1 || arg3 || arg4 || arg5)
 				return -EINVAL;
 
-			current->no_new_privs = 1;
+			task_set_no_new_privs(current);
 			break;
 		case PR_GET_NO_NEW_PRIVS:
 			if (arg2 || arg3 || arg4 || arg5)
 				return -EINVAL;
-			return current->no_new_privs ? 1 : 0;
+			return task_no_new_privs(current) ? 1 : 0;
 		default:
 			error = -EINVAL;
 			break;
