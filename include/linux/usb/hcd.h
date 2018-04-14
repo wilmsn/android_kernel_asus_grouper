@@ -128,6 +128,7 @@ struct usb_hcd {
 	unsigned		wireless:1;	/* Wireless USB HCD */
 	unsigned		authorized_default:1;
 	unsigned		has_tt:1;	/* Integrated TT in root hub */
+	unsigned		cant_recv_wakeups:1;
 
 	int			irq;		/* irq allocated */
 	void __iomem		*regs;		/* device memory/io */
