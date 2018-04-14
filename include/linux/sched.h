@@ -56,6 +56,7 @@ struct sched_param {
 #include <linux/types.h>
 #include <linux/timex.h>
 #include <linux/jiffies.h>
+#include <linux/plist.h>
 #include <linux/rbtree.h>
 #include <linux/thread_info.h>
 #include <linux/cpumask.h>
@@ -139,6 +140,8 @@ extern int nr_processes(void);
 extern unsigned long nr_running(void);
 extern unsigned long nr_uninterruptible(void);
 extern unsigned long nr_iowait(void);
+extern unsigned long get_avg_nr_running(unsigned int cpu);
+extern unsigned long avg_nr_running(void);
 extern unsigned long nr_iowait_cpu(int cpu);
 extern unsigned long this_cpu_load(void);
 
@@ -191,9 +194,10 @@ print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq)
 #define TASK_DEAD		64
 #define TASK_WAKEKILL		128
 #define TASK_WAKING		256
-#define TASK_STATE_MAX		512
+#define TASK_PARKED		512
+#define TASK_STATE_MAX		1024
 
-#define TASK_STATE_TO_CHAR_STR "RSDTtZXxKW"
+#define TASK_STATE_TO_CHAR_STR "RSDTtZXxKWP"
 
 extern char ___assert_task_state[1 - 2*!!(
 		sizeof(TASK_STATE_TO_CHAR_STR)-1 != ilog2(TASK_STATE_MAX)+1)];
@@ -1183,6 +1187,9 @@ struct task_struct {
 #ifdef CONFIG_SMP
 	struct task_struct *wake_entry;
 	int on_cpu;
+	struct task_struct *last_wakee;
+	unsigned long wakee_flips;
+	unsigned long wakee_flip_decay_ts;
 #endif
 	int on_rq;
 
@@ -1383,7 +1390,8 @@ struct task_struct {
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task */
-	struct plist_head pi_waiters;
+	struct rb_root pi_waiters;
+	struct rb_node *pi_waiters_leftmost;
 	/* Deadlock detection and priority inheritance handling */
 	struct rt_mutex_waiter *pi_blocked_on;
 #endif

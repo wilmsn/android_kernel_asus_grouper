@@ -1684,7 +1684,7 @@ static int process_ctrl_td(struct xhci_hcd *xhci, struct xhci_td *td,
 	if (event_trb != ep_ring->dequeue) {
 		/* The event was for the status stage */
 		if (event_trb == td->last_trb) {
-			if (td->urb->actual_length != 0) {
+			if (td->urb_length_set) {
 				/* Don't overwrite a previously set error code
 				 */
 				if ((*status == -EINPROGRESS || *status == 0) &&
@@ -1698,7 +1698,13 @@ static int process_ctrl_td(struct xhci_hcd *xhci, struct xhci_td *td,
 					td->urb->transfer_buffer_length;
 			}
 		} else {
-		/* Maybe the event was for the data stage? */
+			/*
+			 * Maybe the event was for the data stage? If so, update
+			 * already the actual_length of the URB and flag it as
+			 * set, so that it is not overwritten in the event for
+			 * the last TRB.
+			 */
+			td->urb_length_set = true;
 			td->urb->actual_length =
 				td->urb->transfer_buffer_length -
 				TRB_LEN(le32_to_cpu(event->transfer_len));
@@ -2327,7 +2333,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 		xhci_halt(xhci);
 hw_died:
 		spin_unlock(&xhci->lock);
-		return -ESHUTDOWN;
+		return IRQ_HANDLED;
 	}
 
 	/*
@@ -3094,8 +3100,8 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	if (start_cycle == 0)
 		field |= 0x1;
 
-	/* xHCI 1.0 6.4.1.2.1: Transfer Type field */
-	if (xhci->hci_version == 0x100) {
+	/* xHCI 1.0/1.1 6.4.1.2.1: Transfer Type field */
+	if (xhci->hci_version >= 0x100) {
 		if (urb->transfer_buffer_length > 0) {
 			if (setup->bRequestType & USB_DIR_IN)
 				field |= TRB_TX_TYPE(TRB_DATA_IN);
