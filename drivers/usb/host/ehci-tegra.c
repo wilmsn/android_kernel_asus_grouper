@@ -22,9 +22,6 @@
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/irq.h>
 #include <linux/usb/otg.h>
-#include <linux/gpio.h>
-#include <linux/of.h>
-#include <linux/of_gpio.h>
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
 #include <mach/board-grouper-misc.h>
@@ -442,18 +439,11 @@ static int tegra_ehci_hub_control(
 		temp &= ~(PORT_RWC_BITS | PORT_WAKE_BITS);
 		/* start resume signaling */
 		ehci_writel(ehci, temp | PORT_RESUME, status_reg);
+		set_bit(wIndex-1, &ehci->resuming_ports);
 
-		spin_unlock_irqrestore(&ehci->lock, flags);
-		msleep(20);
-		spin_lock_irqsave(&ehci->lock, flags);
-
-		/* Poll until the controller clears RESUME and SUSPEND */
-		if (handshake(ehci, status_reg, PORT_RESUME, 0, 2000))
-			pr_err("%s: timeout waiting for RESUME\n", __func__);
-		if (handshake(ehci, status_reg, PORT_SUSPEND, 0, 2000))
-			pr_err("%s: timeout waiting for SUSPEND\n", __func__);
-
-		ehci->reset_done[wIndex-1] = 0;
+		ehci->reset_done[wIndex-1] = jiffies + msecs_to_jiffies(25);
+		/* whoever resumes must GetPortStatus to complete it!! */
+		goto done;
 	}
 
 	/* Handle port reset here */
@@ -500,6 +490,7 @@ static int tegra_ehci_hub_control(
 				if (hsic && (wIndex == 0))
 					tegra_usb_phy_bus_reset(tegra->phy);
 			}
+			clear_bit(wIndex-1, &ehci->resuming_ports);
 			break;
 		}
 		case USB_PORT_FEAT_POWER:
@@ -1156,35 +1147,6 @@ static const struct hc_driver tegra_ehci_hc_driver = {
 #endif
 };
 
-
-static int setup_vbus_gpio(struct platform_device *pdev)
-{
-        int err = 0;
-        int gpio;
-
-        if (!pdev->dev.of_node)
-                return 0;
-
-        gpio = of_get_named_gpio(pdev->dev.of_node, "nvidia,vbus-gpio", 0);
-        if (!gpio_is_valid(gpio))
-                return 0;
-
-        err = gpio_request(gpio, "vbus_gpio");
-        if (err) {
-                dev_err(&pdev->dev, "can't request vbus gpio %d", gpio);
-                return err;
-        }
-        err = gpio_direction_output(gpio, 1);
-        if (err) {
-                dev_err(&pdev->dev, "can't enable vbus\n");
-                return err;
-        }
-
-        return err;
-}
-
-static u64 tegra_ehci_dma_mask = DMA_BIT_MASK(32);
-
 static int tegra_ehci_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -1200,16 +1162,6 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Platform data missing\n");
 		return -EINVAL;
 	}
-
-
-	/* Right now device-tree probed devices don't get dma_mask set.
-	 * Since shared usb code relies on it, set it here for now.
-	 * Once we have dma capability bindings this can go away.
-	 */
-	if (!pdev->dev.dma_mask)
-		pdev->dev.dma_mask = &tegra_ehci_dma_mask;
-
-	setup_vbus_gpio(pdev);
 
 	tegra = kzalloc(sizeof(struct tegra_ehci_hcd), GFP_KERNEL);
 	if (!tegra)
@@ -1474,6 +1426,9 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 		otg_put_transceiver(tegra->transceiver);
 	}
 #endif
+	if (tegra->phy->instance == 1) {
+		modem_ehci_handle = NULL;
+	}
 
 	/* Turn Off Interrupts */
 	ehci_writel(tegra->ehci, 0, &tegra->ehci->regs->intr_enable);
@@ -1483,6 +1438,7 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	usb_remove_hcd(hcd);
 	usb_put_hcd(hcd);
 	tegra_usb_phy_power_off(tegra->phy, true);
+	tegra_ehci_disable_phy_interrupt(hcd);
 	tegra_usb_phy_close(tegra->phy);
 	iounmap(hcd->regs);
 
@@ -1511,18 +1467,12 @@ static void tegra_ehci_hcd_shutdown(struct platform_device *pdev)
 		hcd->driver->shutdown(hcd);
 }
 
-static struct of_device_id tegra_ehci_of_match[] __devinitdata = {
-	{ .compatible = "nvidia,tegra20-ehci", },
-	{ },
-};
-
 static struct platform_driver tegra_ehci_driver = {
 	.probe		= tegra_ehci_probe,
 	.remove		= tegra_ehci_remove,
 	.shutdown	= tegra_ehci_hcd_shutdown,
 	.driver		= {
 		.name	= "tegra-ehci",
-		.of_match_table = tegra_ehci_of_match,
 #ifdef CONFIG_PM
 		.pm	= &tegra_ehci_dev_pm_ops,
 #endif

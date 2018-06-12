@@ -49,21 +49,6 @@ static inline struct of_mm_gpio_chip *to_of_mm_gpio_chip(struct gpio_chip *gc)
 extern int of_get_named_gpio_flags(struct device_node *np,
 		const char *list_name, int index, enum of_gpio_flags *flags);
 
-/**
- * of_get_named_gpio() - Get a GPIO number to use with GPIO API
- * @np:		device node to get GPIO from
- * @propname:	Name of property containing gpio specifier(s)
- * @index:	index of the GPIO
- *
- * Returns GPIO number to use with Linux generic GPIO API, or one of the errno
- * value on the error condition.
- */
-static inline int of_get_named_gpio(struct device_node *np,
-                                   const char *propname, int index)
-{
-	return of_get_named_gpio_flags(np, propname, index, NULL);
-}
-
 extern unsigned int of_gpio_count(struct device_node *np);
 
 extern int of_mm_gpiochip_add(struct device_node *np,
