@@ -208,6 +208,7 @@ static void runnables_stop(void)
 	cancel_delayed_work_sync(&runnables_work);
 	destroy_workqueue(runnables_wq);
 	kobject_put(runnables_kobject);
+	kfree(runnables_kobject);
 }
 
 static int runnables_start(void)
