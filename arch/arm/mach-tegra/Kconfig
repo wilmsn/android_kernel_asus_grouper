@@ -479,6 +479,13 @@ config RQ_STATS
 	help
 	  Select this to enable scheduler rune queue statistic
 	  collections
+config ASMP
+	bool "Multi-core automatic hotplug support"
+	depends on SMP
+	default n
+	help
+	  Automatically hotplugs the multiple cpu cores on and off
+	  based on cpu load and suspend state
 
 config TEGRA_MC_EARLY_ACK
 	bool "Enable early acknowledgement from mermory controller"

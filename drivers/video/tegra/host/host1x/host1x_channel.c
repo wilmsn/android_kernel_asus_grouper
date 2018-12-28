@@ -362,7 +362,7 @@ int host1x_channel_read_3d_reg(
 		if (hwctx_to_save) {
 			syncpt_incrs += hwctx_to_save->save_incrs;
 			hwctx_to_save->hwctx.valid = true;
-			channel->ctxhandler->get(&hwctx_to_save->hwctx);
+			nvhost_job_get_hwctx(job, &hwctx_to_save->hwctx);
 		}
 		channel->cur_ctx = hwctx;
 		if (channel->cur_ctx && channel->cur_ctx->valid) {
@@ -572,7 +572,6 @@ int host1x_save_context(struct nvhost_device *dev, u32 syncpt_id)
 	}
 
 	hwctx_to_save->valid = true;
-	ch->ctxhandler->get(hwctx_to_save);
 	ch->cur_ctx = NULL;
 
 	syncpt_incrs = to_host1x_hwctx(hwctx_to_save)->save_incrs;
